@@ -13,7 +13,14 @@ class CallController extends Controller
 {
     private function canInteract(User $a, User $b): bool
     {
-        return ! $a->is($b) && $a->canSee($b) && $b->canSee($a);
+        if ($a->is($b)) {
+            return false;
+        }
+
+        return \App\Models\Conversation::query()
+            ->whereHas('participants', fn ($query) => $query->whereKey($a->id))
+            ->whereHas('participants', fn ($query) => $query->whereKey($b->id))
+            ->exists();
     }
 
     private function authorizeCall(Request $request, Call $call): User

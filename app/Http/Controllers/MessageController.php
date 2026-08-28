@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -51,7 +52,8 @@ class MessageController extends Controller
 
         $conversation->load([
             'participants:id,name,username,avatar',
-            'messages' => fn ($q) => $q->with(['user:id,name,username,avatar', 'post:id,user_id,image,caption', 'story'])->oldest(),
+            'messages' => fn ($q) => $q->with(['user:id,name,username,avatar', 'post:id,user_id,image,caption', 'story'])
+                ->oldest('created_at')->oldest('id'),
         ]);
 
         $conversation->markAsRead($user);
@@ -104,12 +106,12 @@ class MessageController extends Controller
             abort(403);
         }
 
-        $after = $request->input('after');
+        $after = $request->filled('after') ? Carbon::parse($request->input('after')) : null;
 
         $messages = $conversation->messages()
             ->with(['user:id,name,username,avatar', 'post:id,user_id,image,caption', 'story'])
             ->when($after, fn ($q) => $q->where('created_at', '>', $after))
-            ->oldest()
+            ->oldest('created_at')->oldest('id')
             ->get();
 
         return response()->json($messages);

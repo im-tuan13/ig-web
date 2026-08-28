@@ -102,6 +102,11 @@ class Post extends Model
         return $this->belongsToMany(Hashtag::class, 'hashtag_post')->withTimestamps();
     }
 
+    public function tags(): HasMany
+    {
+        return $this->hasMany(PostTag::class);
+    }
+
     /**
      * Limit the query to posts the given viewer is allowed to see,
      * mirroring the private-account rules already enforced for stories.

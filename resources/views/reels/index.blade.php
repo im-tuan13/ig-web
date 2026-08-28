@@ -45,11 +45,16 @@
                                         class="h-full w-full object-contain opacity-0 transition-opacity duration-500"
                                         :class="{ 'opacity-100': loaded }"
                                         preload="metadata"
+                                        autoplay
                                         playsinline
                                         muted
                                         @loadedmetadata="onMetadata()"
+                                        @loadeddata="onLoaded()"
+                                        x-on:error="onError($event)"
                                         @waiting="loading = true"
-                                        @canplay="loading = false; loaded = true"
+                                        @canplay="onLoaded()"
+                                        @play="playing = true"
+                                        @pause="playing = false"
                                         @click="togglePlay">
                                     </video>
 
@@ -65,10 +70,23 @@
                                         x-show="!playing && loaded"
                                         x-transition.opacity.duration.200ms
                                         class="pointer-events-none absolute inset-0 flex items-center justify-center">
-                                        <div class="flex h-16 w-16 items-center justify-center rounded-full bg-black/50">
-                                            <svg class="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                                <path d="M8 5.5v13l11-6.5z" />
-                                            </svg>
+                                        <div class="flex flex-col items-center gap-3">
+                                            <div class="flex h-16 w-16 items-center justify-center rounded-full bg-black/50">
+                                                <svg class="h-8 w-8 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                    <path d="M8 5.5v13l11-6.5z" />
+                                                </svg>
+                                            </div>
+                                            <div
+                                                x-show="mediaErrorCode !== null || loadTimedOut"
+                                                x-cloak
+                                                class="max-w-[90%] rounded bg-black/75 px-3 py-2 text-center text-xs text-red-200">
+                                                <template x-if="mediaErrorCode !== null">
+                                                    <span><span>Error: </span><span x-text="mediaErrorCode"></span><span> — </span><span x-text="mediaErrorMessage || 'Unknown media error'"></span></span>
+                                                </template>
+                                                <template x-if="loadTimedOut">
+                                                    <span>Video failed to load. Please try again.</span>
+                                                </template>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -250,10 +268,55 @@
                         muted: true,
                         loaded: false,
                         loading: true,
+                        mediaErrorCode: null,
+                        mediaErrorMessage: '',
+                        loadTimedOut: false,
+                        loadTimeout: null,
+
+                        init() {
+                            this.loadTimeout = setTimeout(() => {
+                                this.loading = false;
+                                this.loaded = true;
+                                this.loadTimedOut = true;
+                                console.error('Reels video loading timed out:', {
+                                    currentSrc: this.$refs.video?.currentSrc,
+                                });
+                            }, 8000);
+                        },
+
+                        destroy() {
+                            clearTimeout(this.loadTimeout);
+                        },
+
+                        clearLoadTimeout() {
+                            clearTimeout(this.loadTimeout);
+                            this.loadTimeout = null;
+                        },
 
                         onMetadata() {
                             this.loading = false;
                             this.loaded = true;
+                        },
+
+                        onLoaded() {
+                            this.clearLoadTimeout();
+                            this.loading = false;
+                            this.loaded = true;
+                            this.loadTimedOut = false;
+                        },
+
+                        onError(event) {
+                            const mediaError = event.target.error;
+                            this.clearLoadTimeout();
+                            this.loading = false;
+                            this.loaded = true;
+                            this.mediaErrorCode = mediaError?.code ?? null;
+                            this.mediaErrorMessage = mediaError?.message ?? '';
+                            console.error('Reels video failed to load:', {
+                                code: this.mediaErrorCode,
+                                message: this.mediaErrorMessage,
+                                currentSrc: event.target.currentSrc,
+                            });
                         },
 
                         togglePlay() {
@@ -261,9 +324,12 @@
                             if (!video) return;
 
                             if (video.paused) {
-                                video.play().then(() => {
-                                    this.playing = true;
-                                }).catch(() => {});
+                                video.play().catch((error) => {
+                                    this.loading = false;
+                                    this.loaded = true;
+                                    this.playing = false;
+                                    console.error('Reels video playback failed:', error);
+                                });
                             } else {
                                 video.pause();
                                 this.playing = false;

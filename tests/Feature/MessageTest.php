@@ -6,6 +6,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class MessageTest extends TestCase
@@ -111,6 +112,44 @@ class MessageTest extends TestCase
             ->assertJsonCount(0);
     }
 
+    public function test_conversation_view_renders_messages_in_chronological_order_with_date_dividers(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $conversation = Conversation::findOrCreateBetween($user, $other);
+
+        $yesterday = $conversation->messages()->create(['user_id' => $other->id, 'message' => 'Yesterday']);
+        $yesterday->created_at = Carbon::parse('2026-08-20 23:59:00');
+        $yesterday->saveQuietly();
+        $today = $conversation->messages()->create(['user_id' => $user->id, 'message' => 'Today']);
+        $today->created_at = Carbon::parse('2026-08-21 00:01:00');
+        $today->saveQuietly();
+
+        $html = $this->actingAs($user)->get(route('messages.show', $conversation))->assertOk()->getContent();
+
+        $this->assertLessThan(strpos($html, 'data-message-id="'.$today->id.'"'), strpos($html, 'data-message-id="'.$yesterday->id.'"'));
+        $this->assertSame(2, substr_count($html, 'data-date-divider'));
+    }
+
+    public function test_poll_returns_cross_day_messages_in_chronological_order(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+        $conversation = Conversation::findOrCreateBetween($user, $other);
+        $after = Carbon::parse('2026-08-20 23:00:00')->toIso8601String();
+
+        $late = $conversation->messages()->create(['user_id' => $other->id, 'message' => 'Late yesterday']);
+        $late->created_at = Carbon::parse('2026-08-20 23:30:00');
+        $late->saveQuietly();
+        $early = $conversation->messages()->create(['user_id' => $other->id, 'message' => 'Early today']);
+        $early->created_at = Carbon::parse('2026-08-21 00:30:00');
+        $early->saveQuietly();
+
+        $messages = $this->actingAs($user)->getJson(route('messages.poll', $conversation) . '?after=' . urlencode($after))->assertOk()->json();
+
+        $this->assertSame(['Late yesterday', 'Early today'], array_column($messages, 'message'));
+    }
+
     public function test_unread_count_works(): void
     {
         $user = User::factory()->create();
@@ -159,4 +198,3 @@ class MessageTest extends TestCase
             ->assertSee('No messages yet');
     }
 }
-

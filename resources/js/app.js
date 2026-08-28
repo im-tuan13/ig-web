@@ -564,6 +564,7 @@ window.dmChat = (conversationId, lastCreatedAt, currentUserId) => ({
     lastCreatedAt: lastCreatedAt || null,
 
     init() {
+        this.formatInitialTimes();
         this.scrollToBottom();
         this.$watch('newMessage', () => {});
 
@@ -606,11 +607,7 @@ window.dmChat = (conversationId, lastCreatedAt, currentUserId) => ({
 
             const container = this.$refs.messagesContainer;
 
-            const div = document.createElement('div');
-            div.className = 'flex justify-end';
-            div.innerHTML = this.messageHtml(message, true);
-
-            container.appendChild(div);
+            this.appendMessage(message, true);
             this.scrollToBottom();
             this.newMessage = '';
 
@@ -647,11 +644,8 @@ window.dmChat = (conversationId, lastCreatedAt, currentUserId) => ({
             const wasNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
 
             messages.forEach((message) => {
-                const isMine = parseInt(message.user_id) === parseInt(currentUserId);
-                const div = document.createElement('div');
-                div.className = isMine ? 'flex justify-end' : 'flex justify-start';
-                div.innerHTML = this.messageHtml(message, isMine);
-                container.appendChild(div);
+                if (this.messageExists(message.id)) return;
+                this.appendMessage(message, parseInt(message.user_id) === parseInt(currentUserId));
             });
 
             this.lastCreatedAt = messages[messages.length - 1].created_at;
@@ -674,6 +668,61 @@ window.dmChat = (conversationId, lastCreatedAt, currentUserId) => ({
         return div.innerHTML;
     },
 
+    messageExists(id) {
+        return [...this.$refs.messagesContainer.querySelectorAll('[data-message-id]')]
+            .some((element) => String(element.dataset.messageId) === String(id));
+    },
+
+    formatInitialTimes() {
+        this.$refs.messagesContainer?.querySelectorAll('.message-time').forEach((time) => {
+            time.textContent = this.formatTime(time.dateTime);
+        });
+        this.$refs.messagesContainer?.querySelectorAll('[data-date-divider]').forEach((divider) => {
+            divider.querySelector('span').textContent = this.formatDate(divider.dataset.date);
+        });
+    },
+
+    formatTime(timestamp) {
+        return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+
+    dateKey(timestamp) {
+        const date = new Date(timestamp);
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    },
+
+    formatDate(timestamp) {
+        const date = new Date(timestamp);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        if (this.dateKey(timestamp) === this.dateKey(today)) return 'Today';
+        if (this.dateKey(timestamp) === this.dateKey(yesterday)) return 'Yesterday';
+        return date.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+    },
+
+    appendMessage(message, mine) {
+        const container = this.$refs.messagesContainer;
+        if (this.messageExists(message.id)) return;
+        const key = this.dateKey(message.created_at);
+        const lastMessage = container.querySelector('[data-message-created-at]:last-of-type');
+        const lastKey = lastMessage ? this.dateKey(lastMessage.dataset.messageCreatedAt) : null;
+        if (key !== lastKey) {
+            const divider = document.createElement('div');
+            divider.className = 'my-5 text-center text-xs font-semibold text-[#737373]';
+            divider.dataset.dateDivider = '';
+            divider.dataset.date = message.created_at;
+            divider.innerHTML = `<span class="rounded-full bg-[#1c1c1c] px-3 py-1">${this.formatDate(message.created_at)}</span>`;
+            container.appendChild(divider);
+        }
+        const div = document.createElement('div');
+        div.className = 'mb-3 flex items-end gap-2 ' + (mine ? 'justify-end' : 'justify-start');
+        div.dataset.messageId = message.id;
+        div.dataset.messageCreatedAt = message.created_at;
+        div.innerHTML = this.messageHtml(message, mine);
+        container.appendChild(div);
+    },
+
     insertEmoji(emoji) { this.newMessage += emoji; this.$nextTick(() => this.$refs.messageInput?.focus()); },
 
     async sendSticker(key) {
@@ -684,14 +733,14 @@ window.dmChat = (conversationId, lastCreatedAt, currentUserId) => ({
             if (!response.ok) throw new Error('Sticker could not be sent.');
             const message = await response.json();
             this.lastCreatedAt = message.created_at;
-            const div = document.createElement('div'); div.className = 'flex justify-end'; div.innerHTML = this.messageHtml(message, true); this.$refs.messagesContainer.appendChild(div); this.scrollToBottom(); this.pickerOpen = false;
+            this.appendMessage(message, true); this.scrollToBottom(); this.pickerOpen = false;
         } catch { this.error = 'Sticker could not be sent.'; } finally { this.sending = false; }
     },
 
     messageHtml(message, mine) {
         const stickers = {heart:'💖', laugh:'😂', party:'🎉', fire:'🔥', cat:'😺'};
         if (message.type === 'sticker') return `<div class="px-1 text-6xl" aria-label="Sticker">${stickers[message.sticker_key] || '✨'}</div>`;
-        return `<div class="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${mine ? 'bg-sky-500 text-white' : 'bg-neutral-100 text-neutral-900'}"><p>${this.escapeHtml(message.message || '')}</p><p class="mt-0.5 text-right text-[10px] opacity-70">${new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>`;
+        return `<div class="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${mine ? 'bg-sky-500 text-white' : 'bg-neutral-100 text-neutral-900'}"><p>${this.escapeHtml(message.message || '')}</p><time class="mt-0.5 block text-right text-[10px] opacity-70" datetime="${message.created_at}">${this.formatTime(message.created_at)}</time></div>`;
     },
 });
 
@@ -710,7 +759,7 @@ window.callManager = (currentUserId) => ({
     validCallId(call = this.call) { const id = call?.id; return (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) || (typeof id === 'string' && /^[1-9]\d*$/.test(id)); },
     callId() { return this.validCallId() ? String(this.call.id) : null; },
     dismissIncoming() { if (!this.incoming) return; this.cleanup(); this.open = false; this.incoming = false; this.call = null; this.signalCursor = 0; },
-    async start(userId) { this.error = ''; this.incoming = false; this.statusLabel = 'Calling...'; try { const r = await this.api('/calls', 'POST', {receiver_id:userId,type:'video'}); if (!this.validCallId(r)) throw new Error('Invalid call response.'); this.call = r; this.signalCursor = 0; this.open = true; this.title = r.receiver?.username || 'User'; await this.prepareMedia(); await this.createPeer(true); this.timeout = setTimeout(() => this.endCall('timeout'), 35000); } catch (e) { this.error = e.message || 'Unable to start call.'; } },
+    async start(userId) { this.error = ''; this.incoming = false; this.statusLabel = 'Calling...'; this.open = true; try { const r = await this.api('/calls', 'POST', {receiver_id:userId,type:'video'}); if (!this.validCallId(r)) throw new Error('Invalid call response.'); this.call = r; this.signalCursor = 0; this.title = r.receiver?.username || 'User'; await this.prepareMedia(); await this.createPeer(true); this.timeout = setTimeout(() => this.endCall('timeout'), 35000); } catch (e) { this.error = e.message || 'Unable to start call.'; } },
     showIncoming(call) { if (!this.validCallId(call)) return; this.call = call; this.signalCursor = 0; this.open = true; this.incoming = true; this.title = call.caller?.username || 'Incoming call'; this.callerInitial = (this.title[0] || '📞').toUpperCase(); this.statusLabel = 'Incoming video call'; this.timeout = setTimeout(() => this.endCall('timeout'), 35000); },
     async accept() { const id = this.callId(); if (!id) { this.dismissIncoming(); return; } this.incoming = false; this.statusLabel = 'Connecting...'; try { await this.api(`/calls/${id}/action`, 'POST', {action:'accept'}); await this.prepareMedia(); await this.createPeer(false); } catch (e) { this.error = e.message || 'Camera or microphone permission is required.'; } },
     async decline() { const id = this.callId(); if (id) await this.api(`/calls/${id}/action`, 'POST', {action:'decline'}).catch(()=>{}); this.closeUi('User declined'); },

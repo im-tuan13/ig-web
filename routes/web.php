@@ -23,6 +23,10 @@ use App\Http\Controllers\StoryController;
 use App\Http\Controllers\StoryViewerController;
 use App\Http\Controllers\CallController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ModerationController;
+use App\Http\Controllers\PostTagController;
+use App\Http\Controllers\PresenceController;
+use App\Http\Controllers\NoteController;
 
 Route::get('/', function () {
     return redirect('/dashboard');
@@ -134,6 +138,17 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/collections/{collection}', [CollectionController::class, 'destroy'])->name('collections.destroy');
     Route::post('/collections/{collection}/posts/{post}', [CollectionPostController::class, 'store'])->name('collections.posts.store');
     Route::delete('/collections/{collection}/posts/{post}', [CollectionPostController::class, 'destroy'])->name('collections.posts.destroy');
+    Route::post('/users/{user}/block', [ModerationController::class, 'block'])->name('users.block');
+    Route::delete('/users/{user}/block', [ModerationController::class, 'unblock'])->name('users.unblock');
+    Route::post('/users/{user}/mute', [ModerationController::class, 'mute'])->name('users.mute');
+    Route::delete('/users/{user}/mute', [ModerationController::class, 'unmute'])->name('users.unmute');
+    Route::post('/reports', [ModerationController::class, 'report'])->name('reports.store');
+    Route::post('/posts/{post}/tags', [PostTagController::class, 'store'])->name('posts.tags.store');
+    Route::delete('/posts/{post}/tags/{tag}', [PostTagController::class, 'destroy'])->name('posts.tags.destroy');
+    Route::post('/presence/online', [PresenceController::class, 'online'])->name('presence.online');
+    Route::post('/presence/offline', [PresenceController::class, 'offline'])->name('presence.offline');
+    Route::post('/notes', [NoteController::class, 'store'])->name('notes.store');
+    Route::delete('/notes', [NoteController::class, 'destroy'])->name('notes.destroy');
 
     // Social Graph
     Route::get('/follow-requests', [FollowRequestController::class, 'index'])->name('follow-requests.index');

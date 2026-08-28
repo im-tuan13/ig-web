@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable
 {
@@ -56,6 +56,11 @@ class User extends Authenticatable
         return $this->hasMany(Comment::class);
     }
 
+    public function notes(): HasMany
+    {
+        return $this->hasMany(Note::class);
+    }
+
     public function likedPosts(): BelongsToMany
     {
         return $this->belongsToMany(Post::class, 'post_likes')->withTimestamps();
@@ -70,6 +75,24 @@ class User extends Authenticatable
     {
         return $this->hasMany(Collection::class);
     }
+
+    public function blockedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_blocks', 'blocker_id', 'blocked_id')->withTimestamps();
+    }
+
+    public function blockingUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_blocks', 'blocked_id', 'blocker_id')->withTimestamps();
+    }
+
+    public function mutedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_mutes', 'muter_id', 'muted_id')->withTimestamps();
+    }
+
+    public function isBlocking(User $user): bool { return $this->blockedUsers()->whereKey($user)->exists(); }
+    public function isMuted(User $user): bool { return $this->mutedUsers()->whereKey($user)->exists(); }
 
     public function following(): BelongsToMany
     {

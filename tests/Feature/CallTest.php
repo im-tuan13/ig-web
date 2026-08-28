@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Call;
+use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -59,5 +60,26 @@ class CallTest extends TestCase
             ->getJson('/calls/undefined/signals')
             ->assertUnprocessable()
             ->assertJsonValidationErrors('call_id');
+    }
+
+    public function test_user_can_call_someone_they_have_a_conversation_with_even_if_private_and_not_mutually_followed(): void
+    {
+        $caller = User::factory()->create();
+        $receiver = User::factory()->create(['is_private' => true]);
+        Conversation::findOrCreateBetween($caller, $receiver);
+
+        $this->actingAs($caller)
+            ->postJson('/calls', ['receiver_id' => $receiver->id, 'type' => 'video'])
+            ->assertOk();
+    }
+
+    public function test_user_cannot_call_someone_they_have_no_conversation_with(): void
+    {
+        $caller = User::factory()->create();
+        $stranger = User::factory()->create();
+
+        $this->actingAs($caller)
+            ->postJson('/calls', ['receiver_id' => $stranger->id, 'type' => 'video'])
+            ->assertForbidden();
     }
 }
