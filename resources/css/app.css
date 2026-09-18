@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        background: #faf9f9;
+    }
+
+    body {
+        min-width: 320px;
+        background: #faf9f9;
+        color: #1a1c1c;
+    }
+}
+
+@layer components {
+    .ig-page {
+        @apply mx-auto w-full max-w-[935px] px-4 py-8 sm:px-8;
+    }
+
+    .ig-card {
+        @apply border border-[#c4c7c8] bg-white shadow-none;
+    }
+
+    .ig-button {
+        @apply inline-flex items-center justify-center rounded-lg border border-[#c4c7c8] bg-[#eeeeee] px-4 py-1.5 text-label-md text-[#1a1c1c] transition-colors hover:bg-[#e2e2e2];
+    }
+
+    .ig-button-primary {
+        @apply inline-flex items-center justify-center rounded-lg bg-[#0095f6] px-4 py-1.5 text-label-md text-white transition-colors hover:bg-[#007fd4];
+    }
+
+    .ig-nav-link {
+        @apply mx-1 flex items-center gap-4 rounded-lg p-3 text-label-md text-[#1a1c1c] transition-colors hover:bg-[#e8e8e8];
+    }
+
+    .ig-nav-link-active {
+        @apply bg-[#f4f3f3] font-bold;
+    }
+}
+
+[x-cloak] {
+    display: none !important;
+}
